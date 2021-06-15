@@ -1,0 +1,4 @@
+matplotlib
+flask
+requests
+markdown

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+    crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+   integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+   crossorigin=""></script>
+   <style>
+       html, body {height: 100%; width: 100%; margin: 0; padding: 0;}
+       #mapid { height: 100%; }
+   </style>
+</head>
+<body>
+    <div id="mapid"></div>
+    <script>
+var getJSON = function(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      var status = xhr.status;
+      if (status === 200) {
+        callback(null, xhr.response);
+      } else {
+        callback(status, xhr.response);
+      }
+    };
+    xhr.send();
+};
+
+
+var mymap = L.map('mapid').setView([56.4437, 9.5023], 7);
+L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 18,
+    id: 'mapbox/streets-v11',
+    tileSize: 512,
+    zoomOffset: -1,
+    accessToken: 'pk.eyJ1IjoiYWNocmkiLCJhIjoiY2twaXRvZjd4MWV6dzJwcmlmaXdyejc4eiJ9.I351PbCMUVpILrnyBRoMKA'
+}).addTo(mymap);
+
+function findCenter(bb) {
+    return [bb.lat_0+(bb.lat_1-bb.lat_0)/2 , bb.lon_0+(bb.lon_1-bb.lon_0)/2];
+}
+
+function findSognByPoint(lat,lon, doc) {
+    function pointBBintersection(lat, lon, bb) {
+        return lat >= bb.lat_0 && lat <= bb.lat_1 && lon >= bb.lon_0 && lon <= bb.lon_1;
+    }
+    var stifter = Object.values(doc.stifter).filter((stift) => pointBBintersection(lat,lon, stift.boundingbox))
+    var provstier = [];
+    var sogne = [];
+    for (const stift in stifter) {
+        provstier = provstier.concat(Object.values(stifter[stift].provstier).filter((provsti) => pointBBintersection(lat,lon, provsti.boundingbox)));
+    }
+    for (const provsti in provstier) {
+        sogne = sogne.concat(Object.values(provstier[provsti].sogne).filter((sogn) => pointBBintersection(lat,lon, sogn.boundingbox)));
+    }
+    console.log(stifter);
+    console.log(provstier);
+    console.log(sogne);
+    return sogne;
+}
+
+getJSON('/data/dataset.json',
+function(err, doc) {
+  if (err !== null) {
+    alert('Something went wrong: ' + err);
+  } else {
+    findSognByPoint(57.17536551680044, 9.701480184505503,doc);
+    L.marker([57.17536551680044, 9.701480184505503]).addTo(mymap);
+
+    var stifter = []
+    var provstier = []
+    var sogne = []
+    for(var id1 in doc.stifter) {
+        var elm = doc.stifter[id1];
+        var pop = elm.population;
+        var name = elm.name;
+        var popup = L.popup().setContent("<b>"+name+"</b><br>population: "+pop).setLatLng(findCenter(elm.boundingbox))
+        stifter.push(
+            L.polyline(elm.polygons, {weight: 1, color: 'orange'/* color: 'red' */}).bindPopup(popup).on('mouseover',function(ev) {
+                ev.target.openPopup();
+            })
+        );
+        
+        for(var id2 in doc.stifter[id1].provstier) {
+            var elm = doc.stifter[id1].provstier[id2];
+            var pop = elm.population;
+            var name = elm.name;
+            var popup = L.popup().setContent("<b>"+name+"</b><br>population: "+pop).setLatLng(findCenter(elm.boundingbox))
+            provstier.push(
+                L.polyline(elm.polygons, {weight: 1, color: 'orange'/* color: 'red' */}).bindPopup(popup).on('mouseover',function(ev) {
+                    ev.target.openPopup();
+                })
+            );
+
+            for(var id3 in doc.stifter[id1].provstier[id2].sogne) {
+                var elm = doc.stifter[id1].provstier[id2].sogne[id3];
+                var pop = elm.population;
+                var name = elm.name;
+                var popup = L.popup().setContent("<b>"+name+"</b><br>population: "+pop).setLatLng(findCenter(elm.boundingbox))
+                sogne.push(
+                    L.polyline(elm.polygons, {weight: 1, color: 'orange'/* color: 'red' */}).bindPopup(popup).on('mouseover',function(ev) {
+                        ev.target.openPopup();
+                    })
+                );
+            }
+        }
+    }
+    var layers = {
+        "Stifter": L.layerGroup(stifter),
+        "Provstier": L.layerGroup(provstier),
+        "Sogne": L.layerGroup(sogne)
+    };
+    L.control.layers(layers).addTo(mymap);
+  }
+});
+
+
+    </script>
+</body>
+</html>
