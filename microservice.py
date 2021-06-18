@@ -1,4 +1,6 @@
-from flask import Flask, json, request, send_from_directory
+from os import truncate
+from flask import Flask, Response, json, request, send_from_directory
+from waitress import serve
 import sqlite3
 
 import database
@@ -24,9 +26,9 @@ def levelToString(level):
 
 def success(data):
   
-  return json.dumps({'success': True, 'data': data})
+  return Response(json.dumps({'success': True, 'data': data}), mimetype='application/json')
 def error(message):
-  return json.dumps({'success': False, 'error': message})
+  return Response(json.dumps({'success': False, 'error': message}), mimetype='application/json')
 
 def getGeometryByAreaID(conn, id):
   res = database.getpolygonsByArea(conn, id)
@@ -45,44 +47,71 @@ def static_files(path):
 
 @api.route('/data/dataset.json')
 def datasetJSON():
-  return json_dataset.getDataset()
+  return Response(json_dataset.getDataset(), mimetype='application/json')
 
 
 @api.route('/<int:id>', methods=['GET'])
 @api.route('/<int:id>/geometry', methods=['GET'])
+def API_regionByID(id, level=None):
+  conn = database.connect()
+  conn.row_factory=sqlite3.Row # returns rows as dictionary instead of n-tuples
+  
+  area = regionByID(id, level)
+  if area:
+    if requestsGeometry():
+      area['geometry'] = getGeometryByAreaID(conn, area['id'])
+    return success(area)
+  else:
+    return error("No {} with id {}".format(levelToString(level), id))
+
 def regionByID(id, level=None):
   conn = database.connect()
   conn.row_factory=sqlite3.Row # returns rows as dictionary instead of n-tuples
   
   area = database.getAreaByID(conn, id, level)
   if area:
-    res = dict(area)
-    if requestsGeometry():
-      res['geometry'] = getGeometryByAreaID(conn, res['id'])
-    return success(res)
+    return dict(area)
   else:
-    return error("No {} with id {}".format(levelToString(level), id))
+    None
+
 
 @api.route('/<float:lat>/<float:lon>', methods=['GET'])
 @api.route('/<float:lat>/<float:lon>/geometry', methods=['GET'])
 def regionsByCoord(lat,lon,level = None):
   conn = database.connect()
   conn.row_factory=sqlite3.Row # returns rows as dictionary instead of n-tuples
-  areas = database.areasByLocation(conn, lat,lon, level)
+  areas = database.areasByLocation(conn, lat,lon, 3) # find containing l3s, since checking if inside is cheaper than on l2 and l1
   areas = [
     (dict(x), getGeometryByAreaID(conn, x['id'])) 
     for x in areas
   ]
 
-  found = []
+  found = None
   for (area, polygons) in areas:
     for polygon in polygons:
       if pointPolygonIntersection((lat,lon), polygon):
-        if requestsGeometry():
-          area['geometry'] = polygons
-        found.append(area)
+        found = area
         break
+    if found != None:
+      break
   
+  if found == None:
+    return error("No {} at location".format(levelToString(level)))
+
+  
+  found = [found]
+  found.append(regionByID(found[0]['parent_id']))
+  found.append(regionByID(found[1]['parent_id']))
+
+  if level == None:
+    if requestsGeometry():
+      for area in found:
+        area['geometry'] = getGeometryByAreaID(conn, area['id'])
+  else:
+    found = found[3-level]
+    if requestsGeometry():
+      found['geometry'] = getGeometryByAreaID(conn, found['id'])
+
   conn.close()
   return success(found)
 
@@ -147,21 +176,21 @@ def allLn(n):
 @api.route('/l1/<int:id>', methods=['GET'])
 @api.route('/l1/<int:id>/geometry', methods=['GET'])
 def L1ByID(id):
-  return regionByID(id, 1)
+  return API_regionByID(id, 1)
 
 @api.route('/provsti/<int:id>', methods=['GET'])
 @api.route('/provsti/<int:id>/geometry', methods=['GET'])
 @api.route('/l2/<int:id>', methods=['GET'])
 @api.route('/l2/<int:id>/geometry', methods=['GET'])
 def L2ByID(id):
-  return regionByID(id, 2)
+  return API_regionByID(id, 2)
 
 @api.route('/sogn/<int:id>', methods=['GET'])
 @api.route('/sogn/<int:id>/geometry', methods=['GET'])
 @api.route('/l3/<int:id>', methods=['GET'])
 @api.route('/l3/<int:id>/geometry', methods=['GET'])
 def L3ByID(id):
-  return regionByID(id, 3)
+  return API_regionByID(id, 3)
 
 
 @api.route('/stift/<int:id>/provsti', methods=['GET'])
@@ -210,8 +239,21 @@ def getSognOfProvsti(id):
 def requestsGeometry():
   return request.base_url.split('/')[-1] == "geometry"
 
-if __name__ == '__main__':
+def init():
   if not database.exists():
     buildDataset()
-  api.run(host='0.0.0.0', port=80)
 
+
+def serveDevelop():
+  init()
+  api.run(host='0.0.0.0', port=8000)
+  
+def serveProduction():
+  init()
+  print("Serving on port 8000", flush=True)
+  serve(api, host='0.0.0.0', port=8000)
+  print("quitting")
+
+if __name__ == '__main__':
+  serveProduction()
+  

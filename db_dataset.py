@@ -1,5 +1,8 @@
 from typing import Dict
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
+
 import xml.etree.ElementTree as ET
 import json
 from os import path
@@ -23,6 +26,11 @@ def _makePopulation():
                 }
             ]
         }
+        session = requests.Session()
+        retry = Retry(connect=5, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
         text = requests.post("https://api.statbank.dk/v1/data", json = reqData).text
         return text
 
@@ -34,7 +42,16 @@ def _makePopulation():
 
 
 def _downloadXML(url):
-    text = common.cache(url, lambda: requests.get(url, allow_redirects=True).text)
+    def dl(url):
+        session = requests.Session()
+        retry = Retry(connect=5, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
+        return lambda: session.get(url, allow_redirects=True).text
+
+    text = common.cache(url, dl(url))
     return ET.fromstring(text)
 
 def _parseLevel(conn, level = 1, parent_id = None):
@@ -68,13 +85,17 @@ def _parseLevel(conn, level = 1, parent_id = None):
     
     # depth first parsing
     children = database.getChildAreas(conn, parent_id)
+    i = 1
     for child in children:
+        if level == 1:
+            print("Parsing stift {} of {}".format(i, len(children)),flush=True)
+            i += 1
         _parseLevel(conn, level+1, child[0])
     
 
 
 def buildDataset():
-    print("Building dataset: This might take a while")
+    print("Building dataset: This might take a while", flush=True)
     conn = database.connect()
     database.reset(conn)
     _parseLevel(conn)

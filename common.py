@@ -1,9 +1,8 @@
 import hashlib
-from os import path, mkdir
+from os import makedirs, path
 
 if not path.exists('./data/cache'):
-    mkdir('./data')
-    mkdir('./data/cache')
+    makedirs('./data/cache')
 
 def cache(key, func):
     cachedPath = "./data/cache/"+str(hashlib.md5(key.encode('utf-8')).hexdigest())

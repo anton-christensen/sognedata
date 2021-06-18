@@ -2,9 +2,9 @@
 `docker build -t sognedata .`
 
 # Running
-To run the api on port 5000 and persisting the dataset for faster startup
+To run the api on port 8000 and persisting the dataset for faster startup
 
-`docker run --rm -p 5000:80 -v $(pwd)/data:/usr/src/app/data sognedata`
+`docker run --rm -p 8000:8000 -v sognedata-storage:/usr/src/app/data sognedata`
 
 # API documentation
 
@@ -38,3 +38,4 @@ To run the api on port 5000 and persisting the dataset for faster startup
 | ---------------------- | ----------------------------------------------- |
 | [`/static/map.html    `](/static/map.html    ) | Map view for testing    |
 | [`/data/dataset.json  `](/data/dataset.json  ) | JSON version of dataset |
+
