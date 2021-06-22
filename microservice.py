@@ -32,7 +32,7 @@ def error(message):
 
 def getGeometryByAreaID(conn, id):
   res = database.getpolygonsByArea(conn, id)
-  res = [ [(lat, lon) for (lat, lon) in x] for x in res ]
+  res = {"boundingbox": dict(res['boundingbox']), "polygons": [ [(lat, lon) for (lat, lon) in x] for x in res['polygons'] ]}
   return res
 
 @api.route('/', methods=["GET"])
@@ -87,8 +87,8 @@ def regionsByCoord(lat,lon,level = None):
   ]
 
   found = None
-  for (area, polygons) in areas:
-    for polygon in polygons:
+  for (area, geometry) in areas:
+    for polygon in geometry['polygons']:
       if pointPolygonIntersection((lat,lon), polygon):
         found = area
         break

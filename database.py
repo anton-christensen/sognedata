@@ -204,12 +204,13 @@ def getChildAreas(conn:sqlite3.Connection, parent_id:int):
 
 def getpolygonsByArea(conn:sqlite3.Connection, area_id):
     cur = conn.cursor()
+    boundingbox = cur.execute('SELECT min_lat, min_lon, max_lat, max_lon FROM boundingbox where area_id = ?;', (area_id, )).fetchone()
     polygons = cur.execute('SELECT id FROM polygon where area_id = ?;', (area_id, )).fetchall()
     polygon_ids = [ (p[0], ) for p in polygons ]
     polygons = []
     for polygon_id in polygon_ids:
         polygons.append(cur.execute('SELECT lat, lon FROM polygon_point WHERE polygon_id = ? ORDER BY point_index ASC', polygon_id).fetchall())
-    return polygons
+    return {"boundingbox": boundingbox, "polygons": polygons};
 
 def getAreaByID(conn:sqlite3.Connection, area_id, level = None):
     cur = conn.cursor()

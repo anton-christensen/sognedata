@@ -36,6 +36,7 @@ To run the api on port 8000 and persisting the dataset for faster startup
 
 | Route                  | Description                                     |
 | ---------------------- | ----------------------------------------------- |
-| [`/static/map.html    `](/static/map.html    ) | Map view for testing    |
+| [`/static/l3bylocation.html?lat=<lat>&lon=<lon>`](/static/l3bylocation.html?lat=57.04&lon=9.939) | Map showing sogn at given location |
 | [`/data/dataset.json  `](/data/dataset.json  ) | JSON version of dataset |
+| [`/static/map.html    `](/static/map.html    ) | Map view for testing    |
 
